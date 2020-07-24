@@ -1,0 +1,2 @@
+,model_number,lb_score,model_type,is_test,training_time,comments
+0724_1810,previous_value_benchmark,0,previous_value_benchmark,False,1.0,Predict based on sale of items from 2005 October

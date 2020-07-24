@@ -7,13 +7,11 @@ Sample Usage:
 
 import pandas as pd
 
+from config.constants import INPUT_DATA_DIR, PROCESSED_DATA_DIR
 import munging.process_data as process_data
 
 
 def main():
-    INPUT_DATA_DIR = '/home/jupyter/kaggle/predict_future_sales/data/read_only'
-    OUTPUT_DATA_DIR = '/home/jupyter/kaggle/predict_future_sales/data/processed'
-
     print(f'Reading data from directory [{INPUT_DATA_DIR}]...')
     train_df, test_df, sample_submission_df, items_df, \
         item_categories_df, shops_df = process_data.read_data(INPUT_DATA_DIR)
@@ -45,17 +43,17 @@ def main():
     sample_submission_df = process_data.change_dtype(
         sample_submission_df, 'float64', 'float32')
 
-    train_df.to_feather(f'{OUTPUT_DATA_DIR}/train_processed.feather')
+    train_df.to_feather(f'{PROCESSED_DATA_DIR}/train_processed.feather')
     test_df.to_feather(
-        f'{OUTPUT_DATA_DIR}/test_processed.feather')
+        f'{PROCESSED_DATA_DIR}/test_processed.feather')
     items_df.to_feather(
-        f'{OUTPUT_DATA_DIR}/items_processed.feather')
+        f'{PROCESSED_DATA_DIR}/items_processed.feather')
     item_categories_df.to_feather(
-        f'{OUTPUT_DATA_DIR}/item_categories_processed.feather')
+        f'{PROCESSED_DATA_DIR}/item_categories_processed.feather')
     shops_df.to_feather(
-        f'{OUTPUT_DATA_DIR}/shops_processed.feather')
+        f'{PROCESSED_DATA_DIR}/shops_processed.feather')
     sample_submission_df.to_feather(
-        f'{OUTPUT_DATA_DIR}/submission_processed.feather')
+        f'{PROCESSED_DATA_DIR}/submission_processed.feather')
 
 
 if __name__ == "__main__":
