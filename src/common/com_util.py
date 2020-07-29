@@ -17,11 +17,11 @@ def set_seed(seed=0):
     np.random.seed(seed)
 
 
-def trigger_gc():
+def trigger_gc(logger):
     """
     Trigger GC
     """
-    print(gc.collect())
+    logger.info(f"Number of object collected [{gc.collect()}]")
 
 
 def set_timezone():
@@ -32,8 +32,12 @@ def set_timezone():
     time.tzset()
 
 
-def get_logger(logger_name, model_number, run_id, path):
+def get_logger(logger_name, model_number=None, run_id=None, path=None):
     """
+    Returns a logger with Stream & File Handler.
+    File Handler is created only if model_number, run_id, path
+    are not None.
+
     https://realpython.com/python-logging/
     https://www.kaggle.com/ogrellier/user-level-lightgbm-lb-1-4480
     """
@@ -43,12 +47,15 @@ def get_logger(logger_name, model_number, run_id, path):
     logger.setLevel(logging.DEBUG)
 
     s_handler = logging.StreamHandler(sys.stdout)
-    f_handler = logging.FileHandler(f'{path}/{model_number}_{run_id}.log')
     formatter = logging.Formatter(FORMAT)
     s_handler.setFormatter(formatter)
-    f_handler.setFormatter(formatter)
-    logger.addHandler(f_handler)
     logger.addHandler(s_handler)
+
+    if all([model_number, run_id, path]):
+        f_handler = logging.FileHandler(f'{path}/{model_number}_{run_id}.log')
+        f_handler.setFormatter(formatter)
+        logger.addHandler(f_handler)
+
     return logger
 
 
