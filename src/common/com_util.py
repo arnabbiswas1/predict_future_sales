@@ -60,7 +60,7 @@ def get_logger(logger_name, model_number=None, run_id=None, path=None):
 
 
 def update_tracking(run_id,
-                    field,
+                    key,
                     value,
                     csv_file=constants.TRACKING_FILE,
                     is_integer=False,
@@ -90,7 +90,7 @@ def update_tracking(run_id,
         value = round(value, no_of_digits)
 
     # Model number is index
-    df.loc[run_id, field] = value
+    df.loc[run_id, key] = value
     df.to_csv(csv_file)
 
 
