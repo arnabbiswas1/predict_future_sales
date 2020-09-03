@@ -14,30 +14,35 @@ from catboost import Pool
 import common.com_util as util
 
 
-def train_model(logger, training, validation, predictors, target,  params, test_X=None):
-
+def train_validate_on_holdout(
+        logger, training, validation, predictors, target,
+        params, test_X=None, model_type='lgb'):
+    """Train a model and validate on holdout data
+    """
     train_X = training[predictors]
-    train_Y = np.log1p(training[target])
+    train_Y = training[target]
     validation_X = validation[predictors]
-    validation_Y = np.log1p(validation[target])
+    validation_Y = validation[target]
 
     logger.info(f'Shape of train_X : {train_X.shape}')
     logger.info(f'Shape of train_Y : {train_Y.shape}')
     logger.info(f'Shape of validation_X : {validation_X.shape}')
     logger.info(f'Shape of validation_Y : {validation_Y.shape}')
 
-    dtrain = lgb.Dataset(train_X, label=train_Y)
-    dvalid = lgb.Dataset(validation_X, validation_Y)
+    if model_type == 'lgb':
+        dtrain = lgb.Dataset(train_X, label=train_Y)
+        dvalid = lgb.Dataset(validation_X, validation_Y)
 
-    logger.info("Training model!")
-    bst = lgb.train(params, dtrain, valid_sets=[dvalid], verbose_eval=100)
+        logger.info(f"Training model with [{model_type}]")
+        bst = lgb.train(params, dtrain, valid_sets=[dvalid], verbose_eval=100)
 
-    valid_prediction = bst.predict(validation_X)
-    valid_score = np.sqrt(metrics.mean_squared_error(validation_Y, valid_prediction))
-    logger.info(f'Validation Score {valid_score}')
+        valid_prediction = bst.predict(validation_X)
+        valid_score = np.sqrt(metrics.mean_squared_error(validation_Y, valid_prediction))
+        logger.info(f'Validation Score {valid_score}')
+        logger.info(f'Best Iteration {bst.best_iteration}')
 
     if test_X is not None:
-        logger.info('Do Nothing')
+        print("Do Nothing")
     else:
         return bst, valid_score
 

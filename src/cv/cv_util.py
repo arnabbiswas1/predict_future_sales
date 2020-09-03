@@ -1,4 +1,4 @@
-"""All the utility methods related to cross validation
+"""All the common methods related to cross validation
 """
 
 

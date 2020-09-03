@@ -96,7 +96,7 @@ def update_tracking(run_id,
 
 def save_file(logger, df, dir_name, file_name):
     """
-    Utility method to save submission, off files etc.
+    common method to save submission, off files etc.
     """
     logger.info(f'Saving {dir_name}/{file_name}')
     df.to_csv(f'{dir_name}/{file_name}', index=False)
