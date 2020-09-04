@@ -99,10 +99,10 @@ predictors = ['shop_id', 'item_id', 'date_block_num', 'item_category_id']
 
 common.update_tracking(RUN_ID, "no_of_features", len(predictors), is_integer=True)
 
-bst, validation_score = train.train_validate_on_holdout(
+bst, validation_score = train.lgb_train_validate_on_holdout(
     logger=logger, training=training, validation=validation,
     predictors=predictors, target=TARGET, params=lgb_params,
-    test_X=None, model_type='lgb')
+    test_X=None)
 
 logger.info(f"Best iteration {bst.best_iteration}, best validation score {bst.best_score}")
 common.update_tracking(RUN_ID, "validation_type", "holdout")
