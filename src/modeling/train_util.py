@@ -42,8 +42,8 @@ def xgb_train_validate_on_holdout(
     train_X, train_Y, validation_X, validation_Y = __get_x_y_from_training_validation(
         logger, training, validation, predictors, target)
 
-    dtrain = xgb.DMatrix(data=train_X, label=train_Y)
-    dvalid = xgb.DMatrix(data=validation_X, label=validation_Y)
+    dtrain = xgb.DMatrix(data=train_X, label=train_Y, feature_names=predictors)
+    dvalid = xgb.DMatrix(data=validation_X, label=validation_Y, feature_names=predictors)
 
     watchlist = [(dtrain, 'train'), (dvalid, 'valid_data')]
     bst = xgb.train(
@@ -51,8 +51,12 @@ def xgb_train_validate_on_holdout(
         evals=watchlist, early_stopping_rounds=early_stopping_rounds,
         params=params, verbose_eval=verbose_eval)
 
-    valid_prediction = bst.predict(validation_X)
-    valid_score = np.sqrt(metrics.mean_squared_error(validation_Y, valid_prediction))
+    valid_prediction = bst.predict(
+        xgb.DMatrix(validation_X, feature_names=predictors),
+        ntree_limit=bst.best_ntree_limit)
+
+    valid_score = np.sqrt(
+        metrics.mean_squared_error(validation_Y, valid_prediction))
     logger.info(f'Validation Score {valid_score}')
     logger.info(f'Best Iteration {bst.best_iteration}')
 
@@ -77,10 +81,12 @@ def lgb_train_validate_on_holdout(
     dtrain = lgb.Dataset(train_X, label=train_Y)
     dvalid = lgb.Dataset(validation_X, validation_Y)
 
-    bst = lgb.train(params, dtrain, valid_sets=[dvalid], verbose_eval=100)
+    bst = lgb.train(params, dtrain, valid_sets=[dtrain, dvalid], verbose_eval=100)
 
-    valid_prediction = bst.predict(validation_X)
-    valid_score = np.sqrt(metrics.mean_squared_error(validation_Y, valid_prediction))
+    valid_prediction = bst.predict(
+        validation_X, num_iteration=bst.best_iteration)
+    valid_score = np.sqrt(
+        metrics.mean_squared_error(validation_Y, valid_prediction))
     logger.info(f'Validation Score {valid_score}')
     logger.info(f'Best Iteration {bst.best_iteration}')
 

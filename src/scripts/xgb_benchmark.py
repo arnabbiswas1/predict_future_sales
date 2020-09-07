@@ -1,5 +1,5 @@
 """
-Benchamrk with LGB item_cnt_month clipped between o to 20, validation on month before prediction (33).
+Benchamrk with XGB item_cnt_month clipped between o to 20, validation on month before prediction (33).
 Final model is built using months upto 32 and final prediction is done on test data using that model.
 """
 
@@ -8,6 +8,8 @@ from timeit import default_timer as timer
 from datetime import datetime
 
 import pandas as pd
+
+import xgboost as xgb
 
 import common.com_util as common
 import config.constants as constants
@@ -23,39 +25,41 @@ RUN_ID = datetime.now().strftime("%m%d_%H%M")
 MODEL_NAME = os.path.basename(__file__).split('.')[0]
 
 SEED = 42
-EXP_DETAILS = "Benchamrk with LGB item_cnt_month clipped between o to 20, validation on month before prediction (33)"
+EXP_DETAILS = "Benchamrk with XGB item_cnt_month clipped between o to 20, validation on month before prediction (33). Final model is built using months upto 32 and final prediction is done on test data using that model."
 IS_TEST = False
 PLOT_FEATURE_IMPORTANCE = False
 
 TARGET = 'item_cnt_month'
 ID = 'ID'
 
-MODEL_TYPE = "lgb"
-OBJECTIVE = "root_mean_squared_error"
-BOOSTING_TYPE = "gbdt"
-METRIC = "RMSE"
-N_ESTIMATORS = 100
-LEARNING_RATE = 0.1
-EARLY_STOPPING_ROUNDS = 100
-VERBOSE = 100
-N_THREADS = -1
-NUM_LEAVES = 31
-MAX_DEPTH = -1
+MODEL_TYPE = "xgb"
+OBJECTIVE = "reg:squarederror"
+METRIC = "rmse"
 
-lgb_params = {
-                'objective': OBJECTIVE,
-                'boosting_type': BOOSTING_TYPE,
-                'n_estimators': N_ESTIMATORS,
-                'learning_rate': LEARNING_RATE,
-                'num_leaves': NUM_LEAVES,
-                'tree_learner': 'serial',
-                'n_jobs': N_THREADS,
-                'seed': SEED,
+BOOSTING_TYPE = "gbtree"
+
+LEARNING_RATE = 0.3
+MAX_DEPTH = 6
+
+EARLY_STOPPING_ROUNDS = 100
+N_ESTIMATORS = 10000
+VERBOSE_EVAL = 100
+
+xgb_params = {
+                # Learning task parameters
+                "objective": OBJECTIVE,
+                "eval_metric": METRIC,
+                "seed": SEED,
+
+                # Type of the booster
+                "booster": BOOSTING_TYPE,
+
+                # parameters for tree booster
+                "LEARNING_RATE": LEARNING_RATE,
                 'max_depth': MAX_DEPTH,
-                'early_stopping_rounds': EARLY_STOPPING_ROUNDS,
-                'max_bin': 255,
-                'metric': METRIC,
-                'verbose': 100
+
+                # General parameters
+                # 'verbosity': 2, #info
                 }
 
 LOGGER_NAME = 'modeling'
@@ -68,9 +72,9 @@ common.update_tracking(
 common.update_tracking(RUN_ID, "model_type", MODEL_TYPE)
 common.update_tracking(RUN_ID, "is_test", IS_TEST)
 common.update_tracking(RUN_ID, "n_estimators", N_ESTIMATORS)
-common.update_tracking(RUN_ID, "learning_rate", LEARNING_RATE)
-common.update_tracking(RUN_ID, "num_leaves", NUM_LEAVES)
 common.update_tracking(RUN_ID, "early_stopping_rounds", EARLY_STOPPING_ROUNDS)
+common.update_tracking(RUN_ID, "learning_rate", LEARNING_RATE)
+
 
 logger.info("Reading data..")
 train_df = pd.read_feather('/home/jupyter/kaggle/predict_future_sales/data/processed/train_all_merged.feather')
@@ -104,23 +108,25 @@ predictors = ['shop_id', 'item_id', 'date_block_num', 'item_category_id']
 
 common.update_tracking(RUN_ID, "no_of_features", len(predictors), is_integer=True)
 
-bst, validation_score = train.lgb_train_validate_on_holdout(
+bst, validation_score = train.xgb_train_validate_on_holdout(
     logger=logger, training=training, validation=validation,
-    predictors=predictors, target=TARGET, params=lgb_params,
+    predictors=predictors, target=TARGET, params=xgb_params,
+    n_estimators=N_ESTIMATORS, early_stopping_rounds=EARLY_STOPPING_ROUNDS,
     test_X=None)
 
-logger.info(f"Best iteration {bst.best_iteration}, best validation score {bst.best_score}")
+logger.info(f"Best iteration {bst.best_ntree_limit}, best validation score {bst.best_score}")
 common.update_tracking(RUN_ID, "validation_type", "holdout")
-common.update_tracking(RUN_ID, "best_iteration", bst.best_iteration, is_integer=True)
-common.update_tracking(RUN_ID, "best_validation_score", bst.best_score['valid_0']['rmse'])
+common.update_tracking(RUN_ID, "best_iteration", bst.best_ntree_limit, is_integer=True)
+common.update_tracking(RUN_ID, "best_validation_score", bst.best_score)
 
 logger.info("Predicting...")
-prediction = bst.predict(test, bst.best_iteration)
+xgb_test = xgb.DMatrix(test, feature_names=predictors)
+prediction = bst.predict(xgb_test, ntree_limit=bst.best_ntree_limit)
 
 submission = pd.DataFrame({'ID': test_df.ID, 'item_cnt_month': prediction})
 
 logger.info("Saving submission file...")
-common.save_file(logger, submission, constants.SUBMISSION_DIR, f"sub_{MODEL_NAME}_{RUN_ID}_lgb_baseline.csv")
+common.save_file(logger, submission, constants.SUBMISSION_DIR, f"sub_{MODEL_NAME}_{RUN_ID}_xgb_baseline.csv")
 
 end = timer()
 common.update_tracking(RUN_ID, "training_time", end - start, is_integer=True)
