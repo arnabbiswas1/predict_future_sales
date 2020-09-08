@@ -14,20 +14,23 @@ from catboost import Pool
 import common.com_util as util
 
 
+def __get_x_y_from_data(
+        logger, df, predictors, target):
+    """Returns X & Y the DataFrame"""
+    if df is not None:
+        df_X = df[predictors]
+        df_Y = df[target]
+    return df_X, df_Y
+
+
 def __get_x_y_from_training_validation(
         logger, training, validation, predictors, target):
     """Returns X & Y for training & validation data"""
-    train_X = training[predictors]
-    train_Y = training[target]
-    validation_X = validation[predictors]
-    validation_Y = validation[target]
-
-    logger.info(f'Shape of train_X : {train_X.shape}')
-    logger.info(f'Shape of train_Y : {train_Y.shape}')
-    logger.info(f'Shape of validation_X : {validation_X.shape}')
-    logger.info(f'Shape of validation_Y : {validation_Y.shape}')
-
-    return train_X, train_Y, validation_X, validation_Y
+    if training is not None:
+        training_X, training_Y = __get_x_y_from_data(logger, training, predictors, target)
+    if validation is not None:
+        validation_X, validation_Y = __get_x_y_from_data(logger, validation, predictors, target)
+    return training_X, training_Y, validation_X, validation_Y
 
 
 def xgb_train_validate_on_holdout(
@@ -42,6 +45,9 @@ def xgb_train_validate_on_holdout(
     train_X, train_Y, validation_X, validation_Y = __get_x_y_from_training_validation(
         logger, training, validation, predictors, target)
 
+    logger.info((f"Shape of train_X, train_Y, validation_X, validation_Y: "
+                f"{train_X.shape}, {train_Y.shape}, {validation_X.shape}, {validation_Y.shape}"))
+
     dtrain = xgb.DMatrix(data=train_X, label=train_Y, feature_names=predictors)
     dvalid = xgb.DMatrix(data=validation_X, label=validation_Y, feature_names=predictors)
 
@@ -55,46 +61,86 @@ def xgb_train_validate_on_holdout(
         xgb.DMatrix(validation_X, feature_names=predictors),
         ntree_limit=bst.best_ntree_limit)
 
+    # Get best iteration
+    best_iteration = bst.best_ntree_limit
+
     valid_score = np.sqrt(
         metrics.mean_squared_error(validation_Y, valid_prediction))
     logger.info(f'Validation Score {valid_score}')
-    logger.info(f'Best Iteration {bst.best_iteration}')
+    logger.info(f'Best Iteration {bst.best_ntree_limit}')
 
     del watchlist, dtrain, dvalid, train_X, train_Y, validation_X, validation_Y
     gc.collect()
 
     if test_X is not None:
-        print("Do Nothing")
+        logger.info("Retraining on the entire data including validation")
+        training = pd.concat([training, validation])
+        train_X, train_Y = __get_x_y_from_data(logger, training, predictors, target)
+        logger.info((f"Shape of train_X, train_Y: "
+                    f"{train_X.shape}, {train_Y.shape}"))
+
+        dtrain = xgb.DMatrix(data=train_X, label=train_Y, feature_names=predictors)
+        dtest = xgb.DMatrix(data=test_X, feature_names=predictors)
+
+        bst = xgb.train(
+            dtrain=dtrain, num_boost_round=best_iteration, params=params)
+
+        logger.info(f"Predicting on test data: {test_X.shape}")
+        prediction = bst.predict(dtest, ntree_limit=best_iteration)
+        return bst, valid_score, prediction
     else:
         return bst, valid_score
 
 
 def lgb_train_validate_on_holdout(
         logger, training, validation, predictors, target,
-        params, test_X=None):
+        params, test_X=None, n_estimators=10000, early_stopping_rounds=100):
     """Train a LGB model and validate on holdout data.
     """
     logger.info("Training using LGB and validating on holdout")
     train_X, train_Y, validation_X, validation_Y = __get_x_y_from_training_validation(
         logger, training, validation, predictors, target)
 
+    logger.info((f"Shape of train_X, train_Y, validation_X, validation_Y: "
+                f"{train_X.shape}, {train_Y.shape}, {validation_X.shape}, {validation_Y.shape}"))
+
     dtrain = lgb.Dataset(train_X, label=train_Y)
     dvalid = lgb.Dataset(validation_X, validation_Y)
 
-    bst = lgb.train(params, dtrain, valid_sets=[dtrain, dvalid], verbose_eval=100)
+    bst = lgb.train(
+        params, dtrain, valid_sets=[dtrain, dvalid],
+        num_boost_round=n_estimators, early_stopping_rounds=early_stopping_rounds,
+        verbose_eval=100)
+
+    best_iteration = bst.best_iteration
 
     valid_prediction = bst.predict(
-        validation_X, num_iteration=bst.best_iteration)
+        validation_X, num_iteration=best_iteration)
     valid_score = np.sqrt(
         metrics.mean_squared_error(validation_Y, valid_prediction))
     logger.info(f'Validation Score {valid_score}')
-    logger.info(f'Best Iteration {bst.best_iteration}')
+    logger.info(f'Best Iteration {best_iteration}')
 
     del dtrain, dvalid, train_X, train_Y, validation_X, validation_Y
     gc.collect()
 
     if test_X is not None:
-        print("Do Nothing")
+        logger.info("Retraining on the entire data including validation")
+        training = pd.concat([training, validation])
+        train_X, train_Y = __get_x_y_from_data(logger, training, predictors, target)
+        logger.info((f"Shape of train_X, train_Y: "
+                    f"{train_X.shape}, {train_Y.shape}"))
+
+        dtrain = lgb.Dataset(train_X, label=train_Y)
+
+        bst = lgb.train(
+                params, dtrain, num_boost_round=best_iteration,
+                verbose_eval=100)
+
+        logger.info(f"Predicting on test data: {test_X.shape}")
+        prediction = bst.predict(test_X, num_iteration=best_iteration)
+
+        return bst, best_iteration, valid_score, prediction
     else:
         return bst, valid_score
 
