@@ -34,7 +34,7 @@ MODEL_TYPE = "lgb"
 OBJECTIVE = "root_mean_squared_error"
 BOOSTING_TYPE = "gbdt"
 METRIC = "RMSE"
-N_ESTIMATORS = 100
+N_ESTIMATORS = 10000
 LEARNING_RATE = 0.1
 EARLY_STOPPING_ROUNDS = 100
 VERBOSE = 100
@@ -104,7 +104,8 @@ common.update_tracking(RUN_ID, "no_of_features", len(predictors), is_integer=Tru
 bst, best_iteration, validation_score, prediction = train.lgb_train_validate_on_holdout(
         logger=logger, training=training, validation=validation,
         predictors=predictors, target=TARGET, params=lgb_params,
-        test_X=test, n_estimators=10000, early_stopping_rounds=100)
+        test_X=test, n_estimators=N_ESTIMATORS,
+        early_stopping_rounds=EARLY_STOPPING_ROUNDS)
 
 logger.info(f"Best iteration {best_iteration}, best validation score {validation_score}")
 common.update_tracking(RUN_ID, "validation_type", "holdout")

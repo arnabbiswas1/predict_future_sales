@@ -34,7 +34,7 @@ MODEL_TYPE = "lgb"
 OBJECTIVE = "root_mean_squared_error"
 BOOSTING_TYPE = "gbdt"
 METRIC = "RMSE"
-N_ESTIMATORS = 100
+N_ESTIMATORS = 10000
 LEARNING_RATE = 0.1
 EARLY_STOPPING_ROUNDS = 100
 VERBOSE = 100
@@ -45,7 +45,6 @@ MAX_DEPTH = -1
 lgb_params = {
                 'objective': OBJECTIVE,
                 'boosting_type': BOOSTING_TYPE,
-                'n_estimators': N_ESTIMATORS,
                 'learning_rate': LEARNING_RATE,
                 'num_leaves': NUM_LEAVES,
                 'tree_learner': 'serial',
@@ -107,12 +106,13 @@ common.update_tracking(RUN_ID, "no_of_features", len(predictors), is_integer=Tru
 bst, validation_score = train.lgb_train_validate_on_holdout(
     logger=logger, training=training, validation=validation,
     predictors=predictors, target=TARGET, params=lgb_params,
-    test_X=None)
+    test_X=None, n_estimators=N_ESTIMATORS, 
+    early_stopping_rounds=EARLY_STOPPING_ROUNDS)
 
-logger.info(f"Best iteration {bst.best_iteration}, best validation score {bst.best_score}")
+logger.info(f"Best iteration {bst.best_iteration}, best validation score {validation_score}")
 common.update_tracking(RUN_ID, "validation_type", "holdout")
 common.update_tracking(RUN_ID, "best_iteration", bst.best_iteration, is_integer=True)
-common.update_tracking(RUN_ID, "best_validation_score", bst.best_score['valid_0']['rmse'])
+common.update_tracking(RUN_ID, "best_validation_score", validation_score)
 
 logger.info("Predicting...")
 prediction = bst.predict(test, bst.best_iteration)
