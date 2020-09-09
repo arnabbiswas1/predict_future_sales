@@ -37,9 +37,24 @@ def xgb_train_validate_on_holdout(
         logger, training, validation, predictors, target,
         params, test_X=None, n_estimators=10000, early_stopping_rounds=100,
         verbose_eval=100):
-    """Train a XGBoost model and validate on holdout data.
-       Default value of `n_estimators` & `early_stopping_rounds` are
-       higher. Change those based on the need.
+    """Train a XGBoost model, validate on holdout data. If `test_X`
+       has a valid value, creates a new model with number of best iteration
+       found during holdout phase using training as well as validation data.
+
+       Args:
+            logger: Logger to be used
+            training: Training DataFrame
+            validation: Validation DataFrame
+            predictors: List of names of features
+            target: Name of target variable
+            params: Parameters for XGBoost
+            test_X: Test DataFrame
+
+       Returns:
+            bst: XGB Booster object
+            valid_score: Best validation score
+            best_iteration: Value of best iteration
+            prediction: Prediction generated on `test_X`
     """
     logger.info("Training using XGBoost and validating on holdout")
     train_X, train_Y, validation_X, validation_Y = __get_x_y_from_training_validation(
@@ -67,7 +82,7 @@ def xgb_train_validate_on_holdout(
     valid_score = np.sqrt(
         metrics.mean_squared_error(validation_Y, valid_prediction))
     logger.info(f'Validation Score {valid_score}')
-    logger.info(f'Best Iteration {bst.best_ntree_limit}')
+    logger.info(f'Best Iteration {best_iteration}')
 
     del watchlist, dtrain, dvalid, train_X, train_Y, validation_X, validation_Y
     gc.collect()
@@ -87,7 +102,7 @@ def xgb_train_validate_on_holdout(
 
         logger.info(f"Predicting on test data: {test_X.shape}")
         prediction = bst.predict(dtest, ntree_limit=best_iteration)
-        return bst, valid_score, prediction
+        return bst, best_iteration, valid_score, prediction
     else:
         return bst, valid_score
 
