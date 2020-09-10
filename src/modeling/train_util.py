@@ -33,6 +33,70 @@ def __get_x_y_from_training_validation(
     return training_X, training_Y, validation_X, validation_Y
 
 
+def cat_train_validate_on_holdout(
+        logger, training, validation, predictors, target, cat_features,
+        params, test_X=None):
+    """Train a XGBoost model, validate on holdout data. If `test_X`
+       has a valid value, creates a new model with number of best iteration
+       found during holdout phase using training as well as validation data.
+    """
+
+    logger.info("Training using CatBoost and validating on holdout")
+    train_X, train_Y, validation_X, validation_Y = __get_x_y_from_training_validation(
+        logger, training, validation, predictors, target)
+
+    logger.info((f"Shape of train_X, train_Y, validation_X, validation_Y: "
+                f"{train_X.shape}, {train_Y.shape}, {validation_X.shape}, {validation_Y.shape}"))
+
+    train_pool = Pool(
+        data=train_X, label=train_Y, feature_names=predictors,
+        cat_features=cat_features)
+    valid_pool = Pool(
+        data=validation_X, label=validation_Y, feature_names=predictors,
+        cat_features=cat_features)
+
+    model = CatBoost(params=params)
+    model.fit(X=train_pool, eval_set=[train_pool, valid_pool])
+
+    best_iteration = model.get_best_iteration()
+
+    valid_prediction = model.predict(valid_pool)
+
+    valid_score = np.sqrt(
+        metrics.mean_squared_error(validation_Y, valid_prediction))
+    logger.info(f'Validation Score {valid_score}')
+    logger.info(f'Best Iteration {best_iteration}')
+
+    del train_pool, valid_pool, train_X, train_Y, validation_X, validation_Y
+    gc.collect()
+
+    if test_X is not None:
+        logger.info("Retraining on the entire data including validation")
+        training = pd.concat([training, validation])
+        train_X, train_Y = __get_x_y_from_data(logger, training, predictors, target)
+        logger.info((f"Shape of train_X, train_Y: "
+                    f"{train_X.shape}, {train_Y.shape}"))
+
+        train_pool = Pool(
+            data=train_X, label=train_Y, feature_names=predictors,
+            cat_features=cat_features)
+        test_pool = Pool(data=test_X, feature_names=predictors)
+
+        params["early_stopping_rounds"] = False
+        params["n_estimators"] = best_iteration
+
+        logger.info(f"Arnab : Modified params {params}")
+
+        model = CatBoost(params=params)
+        model.fit(X=train_pool)
+
+        logger.info(f"Predicting on test data: {test_X.shape}")
+        prediction = model.predict(test_pool)
+        return model, best_iteration, valid_score, prediction
+    else:
+        return model, valid_score
+
+
 def xgb_train_validate_on_holdout(
         logger, training, validation, predictors, target,
         params, test_X=None, n_estimators=10000, early_stopping_rounds=100,
