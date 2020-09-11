@@ -80,12 +80,15 @@ def cat_train_validate_on_holdout(
         train_pool = Pool(
             data=train_X, label=train_Y, feature_names=predictors,
             cat_features=cat_features)
-        test_pool = Pool(data=test_X, feature_names=predictors)
+        test_pool = Pool(
+            data=test_X, feature_names=predictors, cat_features=cat_features)
 
-        params["early_stopping_rounds"] = False
+        params.pop("eval_metric")
+        params.pop("early_stopping_rounds")
+        params.pop("use_best_model")
         params["n_estimators"] = best_iteration
 
-        logger.info(f"Arnab : Modified params {params}")
+        logger.info(f"Modified parameters for final model training.. {params}")
 
         model = CatBoost(params=params)
         model.fit(X=train_pool)
